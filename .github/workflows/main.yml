@@ -49,14 +49,13 @@ jobs:
             exit 1
           fi
 
-      - name: Commit and Push (feeds only)
+      - name: Commit and Push (feeds only, rebase + retry)
         run: |
           set -e
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Stage only feeds/*.xml (ако няма файлове, да не fail-ва)
           mkdir -p feeds
           git add -N feeds/*.xml 2>/dev/null || true
           git add feeds/*.xml 2>/dev/null || true
@@ -68,7 +67,17 @@ jobs:
 
           git commit -m "Update RSS feeds"
 
-          # Избягва non-fast-forward при конкуриращи се комити
-          git pull --rebase origin main
+          # Sync + retry (за случаи когато някой друг commit-не между commit и push)
+          for i in 1 2 3; do
+            echo "== Sync attempt $i =="
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push failed, retrying..."
+            sleep 2
+          done
 
-          git push origin HEAD:main
+          echo "Push failed after retries."
+          exit 1
