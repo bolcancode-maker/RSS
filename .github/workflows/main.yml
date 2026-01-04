@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: update-rss-main
+  group: update-rss-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -67,7 +67,6 @@ jobs:
 
           git commit -m "Update RSS feeds"
 
-          # Sync + retry (за случаи когато някой друг commit-не между commit и push)
           for i in 1 2 3; do
             echo "== Sync attempt $i =="
             git fetch origin main
