@@ -25,15 +25,14 @@ jobs:
       - name: Run Scraper
         run: python scraper.py
 
-      - name: Save and Force Push
+     - name: Save and Force Push
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
-          git add feed.xml
-          # Ако има промени, ги комитваме и качваме насилствено
+          git add *.xml  # Това ще добави и econ.xml, и dnes.xml
           if ! git diff --quiet --staged; then
-            git commit -m "Auto-update RSS"
+            git commit -m "Update multiple RSS feeds"
             git push origin main --force
           else
-            echo "Няма нови промени за качване."
+            echo "No changes detected."
           fi
