@@ -30,10 +30,10 @@ jobs:
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
           git add feed.xml
-          # Проверка за промени. Ако има - комитва и насилствено качва (force push)
+          # Ако има промени, ги комитваме и качваме насилствено
           if ! git diff --quiet --staged; then
             git commit -m "Auto-update RSS"
             git push origin main --force
           else
-            echo "No changes to commit"
+            echo "Няма нови промени за качване."
           fi
