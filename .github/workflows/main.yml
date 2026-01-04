@@ -25,20 +25,13 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
       - name: Install Libraries
         run: pip install requests beautifulsoup4 feedgen lxml
 
       - name: Run Scraper
         run: python scraper.py
-
-      - name: Debug git state
-        run: |
-          echo "== git status =="
-          git status --porcelain
-          echo "== changed files =="
-          git diff --name-only
 
       - name: Commit and Push (feeds only, rebase + retry)
         run: |
