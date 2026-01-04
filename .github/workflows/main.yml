@@ -7,12 +7,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Python
         uses: actions/setup-python@v4
@@ -25,19 +24,14 @@ jobs:
       - name: Run Scraper
         run: python scraper.py
 
-      - name: Deploy to Main
+      - name: Commit and Push
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
-          
-          # Изрично добавяме само двата файла
           git add econ.xml dnes.xml
-          
-          # Проверяваме дали има промени и комитваме
           if git diff --staged --quiet; then
-            echo "Няма промени в новините."
+            echo "No changes to commit"
           else
-            git commit -m "Update RSS feeds"
-            # Използваме специфичен метод за качване, който заобикаля workflow защитата
+            git commit -m "Update RSS files"
             git push origin main
           fi
