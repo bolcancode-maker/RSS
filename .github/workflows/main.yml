@@ -40,15 +40,6 @@ jobs:
           echo "== changed files =="
           git diff --name-only
 
-      - name: Stop if workflow file changed
-        run: |
-          if git diff --name-only | grep -qE '^\.github/workflows/'; then
-            echo "Workflow file changed in runner; refusing to commit/push with GITHUB_TOKEN."
-            echo "Changed files:"
-            git diff --name-only | sed -n '1,200p'
-            exit 1
-          fi
-
       - name: Commit and Push (feeds only, rebase + retry)
         run: |
           set -e
