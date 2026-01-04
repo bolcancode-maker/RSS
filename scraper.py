@@ -12,11 +12,11 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 ALLOWED_HOSTS = {"www.dnes.bg", "dnes.bg"}
 
 
-def norm(text: str) -> str:
+def norm(text):
     return " ".join((text or "").split()).strip()
 
 
-def is_internal_article_url(base_url: str, href: str) -> str | None:
+def is_internal_article_url(base_url, href):
     if not href:
         return None
     if href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
@@ -32,7 +32,6 @@ def is_internal_article_url(base_url: str, href: str) -> str | None:
     if p.fragment:
         return None
 
-    # Евристика: да не са очевидни секции/страници
     bad_prefixes = (
         "/search",
         "/tags",
@@ -48,8 +47,6 @@ def is_internal_article_url(base_url: str, href: str) -> str | None:
     if any(p.path.startswith(x) for x in bad_prefixes):
         return None
 
-    # Евристика: статия обикновено е по-дълъг път от типа /<секция>/<...>
-    # (ако се окаже твърде строго/хлабаво, ще го напаснем)
     if len([x for x in p.path.split("/") if x]) < 2:
         return None
 
@@ -75,7 +72,6 @@ def create_dnes_feed(out_file="dnes.xml", max_items=20):
         items = []
         seen_links = set()
 
-        # В /last-articles в текста има "### ..." заглавия, но линковете са в <a> тагове. [page:0]
         for a in soup.find_all("a", href=True):
             title = norm(a.get_text(" ", strip=True))
             if len(title) < 8:
@@ -99,12 +95,12 @@ def create_dnes_feed(out_file="dnes.xml", max_items=20):
             fe.pubDate(datetime.datetime.now(datetime.timezone.utc))
 
         fg.rss_file(filepath)
-        print(f"✅ Успех: {filepath} (items: {len(items)})")
+        print("✅ Успех: {} (items: {})".format(filepath, len(items)))
 
     except Exception as e:
-        fg.description(f"Грешка при извличане: {e}")
+        fg.description("Грешка при извличане: {}".format(e))
         fg.rss_file(filepath)
-        print(f"⚠️ Записан празен фийд: {filepath} поради грешка: {e}")
+        print("⚠️ Записан празен фийд: {} поради грешка: {}".format(filepath, e))
 
 
 if __name__ == "__main__":
