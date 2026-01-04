@@ -37,13 +37,11 @@ def create_feed(target_url, source_name, filename):
 
             if len(title) > 25 and link not in seen_links:
                 seen_links.add(link)
-
                 fe = fg.add_entry()
                 fe.id(link)
                 fe.title(title)
                 fe.link(href=link)
                 fe.pubDate(datetime.datetime.now(datetime.timezone.utc))
-
                 items_found += 1
                 if items_found >= 20:
                     break
