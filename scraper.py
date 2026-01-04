@@ -1,5 +1,6 @@
 import datetime
 import os
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -8,63 +9,99 @@ from feedgen.feed import FeedGenerator
 
 DNES_LAST_ARTICLES_URL = "https://www.dnes.bg/last-articles"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
+ALLOWED_HOSTS = {"www.dnes.bg", "dnes.bg"}
 
 
-def normalize_title(text: str) -> str:
-    if not text:
-        return ""
-    return " ".join(text.split()).strip()
+def norm(text: str) -> str:
+    return " ".join((text or "").split()).strip()
 
 
-def create_dnes_feed(filename: str = "dnes.xml", max_items: int = 20):
+def is_internal_article_url(base_url: str, href: str) -> str | None:
+    if not href:
+        return None
+    if href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
+        return None
+
+    u = urljoin(base_url, href)
+    p = urlparse(u)
+
+    if p.scheme not in ("http", "https"):
+        return None
+    if p.netloc not in ALLOWED_HOSTS:
+        return None
+    if p.fragment:
+        return None
+
+    # Евристика: да не са очевидни секции/страници
+    bad_prefixes = (
+        "/search",
+        "/tags",
+        "/tag",
+        "/category",
+        "/authors",
+        "/author",
+        "/contact",
+        "/privacy",
+        "/terms",
+        "/about",
+    )
+    if any(p.path.startswith(x) for x in bad_prefixes):
+        return None
+
+    # Евристика: статия обикновено е по-дълъг път от типа /<секция>/<...>
+    # (ако се окаже твърде строго/хлабаво, ще го напаснем)
+    if len([x for x in p.path.split("/") if x]) < 2:
+        return None
+
+    return u
+
+
+def create_dnes_feed(out_file="dnes.xml", max_items=20):
     os.makedirs("feeds", exist_ok=True)
-    filepath = os.path.join("feeds", filename)
+    filepath = os.path.join("feeds", out_file)
 
     fg = FeedGenerator()
     fg.id(DNES_LAST_ARTICLES_URL)
-    fg.title("Новини от Dnes.bg")
+    fg.title("Новини от Dnes.bg (последни статии)")
     fg.link(href=DNES_LAST_ARTICLES_URL, rel="alternate")
-    fg.description("Автоматичен фийд (последни статии) от Dnes.bg")
+    fg.description("Автоматичен фийд от /last-articles на Dnes.bg")
     fg.language("bg")
 
     try:
         r = requests.get(DNES_LAST_ARTICLES_URL, headers=HEADERS, timeout=25)
         r.raise_for_status()
-
         soup = BeautifulSoup(r.content, "html.parser")
 
-        # В /last-articles заглавията са като markdown-ish "### ..." в текста. [page:0]
-        titles = []
-        for line in soup.get_text("\n", strip=True).splitlines():
-            line = line.strip()
-            if line.startswith("###"):
-                t = normalize_title(line.lstrip("#"))
-                if t:
-                    titles.append(t)
+        items = []
+        seen_links = set()
 
-        # Дедупликация, запазвайки реда
-        seen = set()
-        unique_titles = []
-        for t in titles:
-            key = t.lower()
-            if key in seen:
+        # В /last-articles в текста има "### ..." заглавия, но линковете са в <a> тагове. [page:0]
+        for a in soup.find_all("a", href=True):
+            title = norm(a.get_text(" ", strip=True))
+            if len(title) < 8:
                 continue
-            seen.add(key)
-            unique_titles.append(t)
 
-        # Добавяме до max_items. (Без линкове, за да няма грешни препратки.) [page:0]
-        for t in unique_titles[:max_items]:
+            link = is_internal_article_url(DNES_LAST_ARTICLES_URL, a["href"])
+            if not link or link in seen_links:
+                continue
+
+            seen_links.add(link)
+            items.append((title, link))
+
+            if len(items) >= max_items:
+                break
+
+        for title, link in items:
             fe = fg.add_entry()
-            fe.id(f"{DNES_LAST_ARTICLES_URL}#{t}")
-            fe.title(t)
-            fe.link(href=DNES_LAST_ARTICLES_URL)
+            fe.id(link)
+            fe.title(title)
+            fe.link(href=link)
             fe.pubDate(datetime.datetime.now(datetime.timezone.utc))
 
         fg.rss_file(filepath)
-        print(f"✅ Успех: {filepath} (items: {min(len(unique_titles), max_items)})")
+        print(f"✅ Успех: {filepath} (items: {len(items)})")
 
     except Exception as e:
-        # Винаги създаваме файла, дори при временен проблем
         fg.description(f"Грешка при извличане: {e}")
         fg.rss_file(filepath)
         print(f"⚠️ Записан празен фийд: {filepath} поради грешка: {e}")
