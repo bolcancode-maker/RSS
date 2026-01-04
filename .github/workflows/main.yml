@@ -1,21 +1,25 @@
 name: Update RSS
+
 on:
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Check out repository
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Install Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
@@ -25,15 +29,29 @@ jobs:
       - name: Run Scraper
         run: python scraper.py
 
-      - name: Commit and Push
+      - name: Debug git state
         run: |
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
-          # Добавяме само папката feeds
-          git add feeds/*.xml
+          echo "== git status =="
+          git status --porcelain
+          echo "== changed files =="
+          git diff --name-only
+
+      - name: Commit and Push (feeds only)
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Stage only feeds/*.xml (ако няма файлове, да не fail-ва)
+          mkdir -p feeds
+          git add -N feeds/*.xml 2>/dev/null || true
+          git add feeds/*.xml 2>/dev/null || true
+
           if git diff --staged --quiet; then
-            echo "No changes"
-          else
-            git commit -m "Update RSS feeds in folder"
-            git push origin main
+            echo "No changes in feeds/*.xml"
+            exit 0
           fi
+
+          git commit -m "Update RSS feeds"
+          git push origin HEAD:main
