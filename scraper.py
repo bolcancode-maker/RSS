@@ -38,4 +38,4 @@ def create_feed(target_url, source_name, filename):
 
 if __name__ == "__main__":
     create_feed("https://econ.bg/Новини_l.al_at.1.html", "Econ.bg", "econ.xml")
-    create_feed("https://www.dnes.bg/", "Dnes.bg", "dnes.xml")
+    create_feed("https://www.dnes.bg/", "Dnes.bg", "dnes.xml") 
