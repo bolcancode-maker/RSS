@@ -33,10 +33,10 @@ jobs:
       - name: Run Vesti scraper
         run: python scraper.py
 
-      - name: Run Facebook scraper
+      - name: Run Facebook scraper (do not fail workflow)
         env:
           SCRAPEDO_TOKEN: ${{ secrets.SCRAPEDO_TOKEN }}
-        run: python facebook_remont.py
+        run: python facebook_remont.py || true
 
       - name: Commit and Push (feeds only, rebase + retry)
         run: |
