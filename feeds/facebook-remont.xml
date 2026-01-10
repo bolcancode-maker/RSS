@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Как да направя ремонт у дома?</title><description>Apify error 400: {
-  "error": {
-    "type": "invalid-input",
-    "message": "Input is not valid: Field input.startUrls is required"
-  }
-}</description></channel></rss>
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <title>Как да направя ремонт у дома?</title>
+  <link>https://www.facebook.com/groups/299913907483894/</link>
+  <description>Exception: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))</description>
+</channel></rss>
