@@ -17,15 +17,21 @@ CATEGORIES = [
     ("lyubopitno.xml", "Vesti.bg - Любопитно", "https://www.vesti.bg/lyubopitno"),
 ]
 
+STOP_WORDS = {
+    "Не пропускай",
+    "Ексклузивно",
+}
+START_WORDS = {
+    "Последни новини",
+    "Новини от последния час",
+}
+
 def norm(text: str) -> str:
     return " ".join((text or "").split()).strip()
 
 def is_good_title(title: str) -> bool:
-    if not title:
+    if not title or len(title) < 8:
         return False
-    if len(title) < 8:
-        return False
-    # често “Преди 3 минути”, “Преди 1 час” и т.н.
     if re.match(r"^Преди\s+\d+\s+(минути|минута|час|часа|дни|ден)$", title):
         return False
     return True
@@ -46,16 +52,22 @@ def is_internal_article_url(base_url: str, href: str):
     if p.fragment:
         return None
 
-    # режем очевидно “не-статии”
     bad_prefixes = ("/search", "/tags", "/tag", "/category", "/authors", "/author", "/contact", "/privacy", "/terms")
     if any(p.path.startswith(x) for x in bad_prefixes):
         return None
 
-    # статията обикновено има поне 2 сегмента в пътя
     if len([x for x in p.path.split("/") if x]) < 2:
         return None
 
     return u
+
+def find_start_node(soup: BeautifulSoup):
+    # намира първия елемент, който съдържа “Последни новини” / “Новини от последния час”
+    for tag in soup.find_all(["h1", "h2", "h3", "div", "span"]):
+        t = norm(tag.get_text(" ", strip=True))
+        if t in START_WORDS:
+            return tag
+    return None
 
 def create_feed(out_file: str, feed_title: str, list_url: str, max_items: int = 30):
     os.makedirs("feeds", exist_ok=True)
@@ -73,22 +85,42 @@ def create_feed(out_file: str, feed_title: str, list_url: str, max_items: int = 
         r.raise_for_status()
         soup = BeautifulSoup(r.content, "html.parser")
 
+        start = find_start_node(soup)
+        scope = start.parent if start and start.parent else soup  # fallback
+        # Обхождаме елементите след “Последни новини …” и спираме при “Не пропускай”
         items = []
         seen = set()
 
-        for a in soup.find_all("a", href=True):
-            title = norm(a.get_text(" ", strip=True))
-            if not is_good_title(title):
-                continue
-
-            link = is_internal_article_url(list_url, a["href"])
-            if not link or link in seen:
-                continue
-
-            seen.add(link)
-            items.append((title, link))
-            if len(items) >= max_items:
+        for el in scope.find_all(True):  # всички елементи в този “блок”
+            text = norm(el.get_text(" ", strip=True))
+            if text in STOP_WORDS:
                 break
+
+            if el.name == "a" and el.get("href"):
+                title = norm(el.get_text(" ", strip=True))
+                if not is_good_title(title):
+                    continue
+                link = is_internal_article_url(list_url, el["href"])
+                if not link or link in seen:
+                    continue
+                seen.add(link)
+                items.append((title, link))
+                if len(items) >= max_items:
+                    break
+
+        # Ако поради HTML промени не намери нищо, fallback към стария метод
+        if not items:
+            for a in soup.find_all("a", href=True):
+                title = norm(a.get_text(" ", strip=True))
+                if not is_good_title(title):
+                    continue
+                link = is_internal_article_url(list_url, a["href"])
+                if not link or link in seen:
+                    continue
+                seen.add(link)
+                items.append((title, link))
+                if len(items) >= max_items:
+                    break
 
         now = datetime.datetime.now(datetime.timezone.utc)
         for title, link in items:
