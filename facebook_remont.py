@@ -1,74 +1,65 @@
-import datetime
 import os
-from urllib.parse import urljoin
-
 import requests
-from bs4 import BeautifulSoup
-from feedgen.feed import FeedGenerator
 
-FACEBOOK_GROUP_URL = "https://www.facebook.com/groups/299913907483894/"
-OUT_FILE = "facebook-remont.xml"
+RUN_ID = "be034YkD3QrVX2d5W"
+OUT_FILE = "feeds/facebook-remont.xml"
 
-def norm(text: str) -> str:
-    return " ".join((text or "").split()).strip()
-
-def create_facebook_feed(max_items: int = 15):
-    token = os.environ.get("SCRAPEDO_TOKEN", "").strip()
+def main():
+    token = os.environ.get("APIFY_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("Missing APIFY_TOKEN")
 
     os.makedirs("feeds", exist_ok=True)
-    filepath = os.path.join("feeds", OUT_FILE)
 
-    fg = FeedGenerator()
-    fg.id(FACEBOOK_GROUP_URL)
-    fg.title("Как да направя ремонт у дома?")
-    fg.link(href=FACEBOOK_GROUP_URL, rel="alternate")
-    fg.description("Емисия от Facebook група (през scrape.do).")
-    fg.language("bg")
+    # Взима items от dataset-а на конкретния run (JSON).
+    # Ако искаш директно RSS от Apify, можем да сменим format=rss.
+    url = f"https://api.apify.com/v2/actor-runs/{RUN_ID}/dataset/items"
+    params = {
+        "token": token,
+        "format": "json",
+        "clean": "true",
+        "limit": "30",
+    }
 
-    if not token:
-        fg.description("Липсва SCRAPEDO_TOKEN (GitHub Secret).")
-        fg.rss_file(filepath)
-        print(f"⚠️ {filepath} (missing token)")
-        return
-
-    r = requests.get(
-        "http://api.scrape.do/",
-        params={"url": FACEBOOK_GROUP_URL, "token": token},
-        timeout=60,
-    )
+    r = requests.get(url, params=params, timeout=120)
     r.raise_for_status()
+    items = r.json()
 
-    soup = BeautifulSoup(r.text, "html.parser")
+    # Генерираме прост RSS файл (минимален RSS 2.0)
+    # (Без feedgen, за да няма зависимости.)
+    def esc(s):
+        return (
+            (s or "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
 
-    items = []
-    seen = set()
-
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if "/groups/" not in href or "/posts/" not in href:
+    rss_items = []
+    for it in items[:30]:
+        title = esc(str(it.get("text") or it.get("title") or "Facebook post")[:150])
+        link = esc(it.get("url") or it.get("postUrl") or "")
+        if not link:
             continue
+        rss_items.append(
+            f"<item><title>{title}</title><link>{link}</link><guid>{link}</guid></item>"
+        )
 
-        link = urljoin("https://www.facebook.com", href)
-        if link in seen:
-            continue
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<rss version=\"2.0\"><channel>"
+        "<title>Как да направя ремонт у дома?</title>"
+        "<link>https://www.facebook.com/groups/299913907483894/</link>"
+        "<description>Емисия от Facebook група (Apify)</description>"
+        f"{''.join(rss_items)}"
+        "</channel></rss>"
+    )
 
-        title = norm(a.get_text(" ", strip=True)) or "Facebook пост"
-        seen.add(link)
-        items.append((title, link))
+    with open(OUT_FILE, "w", encoding="utf-8") as f:
+        f.write(rss)
 
-        if len(items) >= max_items:
-            break
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-    for title, link in items:
-        fe = fg.add_entry()
-        fe.id(link)
-        fe.title(title)
-        fe.link(href=link)
-        fe.pubDate(now)
-
-    fg.rss_file(filepath)
-    print(f"✅ {filepath} (items: {len(items)})")
+    print(f"✅ Wrote {OUT_FILE} (items: {len(rss_items)})")
 
 if __name__ == "__main__":
-    create_facebook_feed(max_items=15)
+    main()
