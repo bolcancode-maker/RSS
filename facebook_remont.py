@@ -1,7 +1,7 @@
 import os
 import requests
 
-RUN_ID = "be034YkD3QrVX2d5W"
+ACTOR_ID = "2chN8UQcH1CfxLRNE"  # твоят actor
 OUT_FILE = "feeds/facebook-remont.xml"
 
 def main():
@@ -11,55 +11,25 @@ def main():
 
     os.makedirs("feeds", exist_ok=True)
 
-    # Взима items от dataset-а на конкретния run (JSON).
-    # Ако искаш директно RSS от Apify, можем да сменим format=rss.
-    url = f"https://api.apify.com/v2/actor-runs/{RUN_ID}/dataset/items"
+    # Run actor + return dataset items as RSS (sync; timeout ако надвиши ~300 сек)
+    url = f"https://api.apify.com/v2/acts/{ACTOR_ID}/run-sync-get-dataset-items"
     params = {
         "token": token,
-        "format": "json",
+        "format": "rss",
         "clean": "true",
         "limit": "30",
     }
 
-    r = requests.get(url, params=params, timeout=120)
+    # IMPORTANT: input-ът на actor-а е различен според кой actor точно ползваш.
+    # Ако твоят actor вече има default settings за тази група, може да оставим празен input: {}
+    # Ако иска URL, трябва да го сложим тук (примерно {"startUrls":[{"url":"..."}]}), но това зависи от actor input schema.
+    r = requests.post(url, params=params, json={}, timeout=300)
     r.raise_for_status()
-    items = r.json()
 
-    # Генерираме прост RSS файл (минимален RSS 2.0)
-    # (Без feedgen, за да няма зависимости.)
-    def esc(s):
-        return (
-            (s or "")
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-        )
+    with open(OUT_FILE, "wb") as f:
+        f.write(r.content)
 
-    rss_items = []
-    for it in items[:30]:
-        title = esc(str(it.get("text") or it.get("title") or "Facebook post")[:150])
-        link = esc(it.get("url") or it.get("postUrl") or "")
-        if not link:
-            continue
-        rss_items.append(
-            f"<item><title>{title}</title><link>{link}</link><guid>{link}</guid></item>"
-        )
-
-    rss = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        "<rss version=\"2.0\"><channel>"
-        "<title>Как да направя ремонт у дома?</title>"
-        "<link>https://www.facebook.com/groups/299913907483894/</link>"
-        "<description>Емисия от Facebook група (Apify)</description>"
-        f"{''.join(rss_items)}"
-        "</channel></rss>"
-    )
-
-    with open(OUT_FILE, "w", encoding="utf-8") as f:
-        f.write(rss)
-
-    print(f"✅ Wrote {OUT_FILE} (items: {len(rss_items)})")
+    print(f"✅ Wrote {OUT_FILE}")
 
 if __name__ == "__main__":
     main()
