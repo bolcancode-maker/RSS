@@ -30,8 +30,13 @@ jobs:
       - name: Install Libraries
         run: pip install requests beautifulsoup4 feedgen lxml
 
-      - name: Run Scraper
+      - name: Run Vesti scraper
         run: python scraper.py
+
+      - name: Run Facebook scraper
+        env:
+          SCRAPEDO_TOKEN: ${{ secrets.SCRAPEDO_TOKEN }}
+        run: python facebook_remont.py
 
       - name: Commit and Push (feeds only, rebase + retry)
         run: |
