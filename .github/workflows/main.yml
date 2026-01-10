@@ -33,9 +33,9 @@ jobs:
       - name: Run Vesti scraper
         run: python scraper.py
 
-      - name: Run Facebook scraper (do not fail workflow)
+      - name: Run Facebook scraper (Apify, do not fail workflow)
         env:
-          SCRAPEDO_TOKEN: ${{ secrets.SCRAPEDO_TOKEN }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
         run: python facebook_remont.py || true
 
       - name: Commit and Push (feeds only, rebase + retry)
